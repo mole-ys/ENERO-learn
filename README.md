@@ -41,9 +41,13 @@ The source code already provides the data, the results and the trained model use
 
 1. Download the dataset from [here](https://drive.google.com/file/d/1gem-VQ5MY3L54B77XUYt-rTbemyKmaqs/view?usp=sharing) or [here](https://bnn.upc.edu/download/enero-dataset/) and unzip it. The location should be immediatly outside of Enero's code directory. 
 
+   从这里或这里下载数据集并解压缩。该位置应该在Enero的代码目录之外。
+
 ![image](https://user-images.githubusercontent.com/87467979/215685300-de8c071d-c8f7-4ffa-be6a-c642f04a7d76.png)
 
 2. Then, enter in the unziped "Enero_datasets" directory and unzip everything.
+  
+   然后，进入解压后的“Enero_datasets”目录并解压所有内容。
 
 ## Instructions to obtain the Figures from the paper
 
@@ -63,6 +67,9 @@ python figure_7.py -d SP_3top_15_B_NEW -p ../Enero_datasets/dataset_sing_top/eva
 ```
 
 3. Next, we generate the link failure Figures (one per topology):
+
+   接下来，我们继续对模型进行评估。例如，假设我们想在Garr199905拓扑上评估所提供的训练模型。要做到这一点，我们执行以下脚本，我们用标志'-d'表示选择训练模型，用标志'-f1'表示目录(它必须与前一个命令相同!)，用'-f2'指定拓扑。
+
 ```ruby
 python figure_8.py -d SP_3top_15_B_NEW -num_topologies 20 -f ../Enero_datasets/dataset_sing_top/LinkFailure/rwds-LinkFailure_HurricaneElectric
 
@@ -72,6 +79,9 @@ python figure_8.py -d SP_3top_15_B_NEW -num_topologies 20 -f ../Enero_datasets/d
 ```
 
 4. Finally, we generate the generalization figure
+
+   最后，生成概化图
+
 ```ruby
 python figure_9.py -d SP_3top_15_B_NEW -p ../Enero_datasets/rwds-results-1-link_capacity-unif-05-1-zoo
 ```
@@ -135,11 +145,16 @@ python figure_7.py -d SP_3top_15_B_NEW -p ../Enero_datasets/dataset_sing_top/dat
 
 1. To trail the DRL agent we must execute the following command. Notice that inside the *train_Enero_3top_script.py* there are different hyperparameters that you can configure to set the training for different topologies, to define the size of the GNN model, etc. Then, we execute the following script which executes the actual training script periodically. 
 
+   要跟踪DRL代理，我们必须执行以下命令。注意，在train_Enero_3top_script.py中有不同的超参数，您可以配置这些超参数来设置不同拓扑的训练，定义GNN模型的大小等。然后，我们执行下面的脚本，它定期执行实际的训练脚本。
+
 ```ruby
 python train_Enero_3top.py
 ```
 
 2. Now that the training process is executing, we can see the DRL agent performance evolution by parsing the log files from another terminal session. Notice that the following command should point to the proper Logs.
+
+   现在训练过程正在执行，我们可以通过解析来自另一个终端会话的日志文件来查看DRL代理的性能演变。注意，下面的命令应该指向正确的日志。
+
 ```ruby
 python parse_PPO.py -d ./Logs/expEnero_3top_15_B_NEWLogs.txt
 ```
