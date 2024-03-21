@@ -386,15 +386,18 @@ if __name__ == "__main__":
     parser.add_argument('-f1', help='dataset folder name topology 1', type=str, required=True, nargs='+')
     parser.add_argument('-f2', help='dataset folder name topology 2', type=str, required=True, nargs='+')
     parser.add_argument('-f3', help='dataset folder name topology 3', type=str, required=True, nargs='+')
-    args = parser.parse_args()
+    args = parser.parse_args()# 解析命令行输入的参数。
 
+    # 根据命令行参数构建数据集文件夹路径。
     dataset_folder_name1 = "../Enero_datasets/dataset_sing_top/data/results_my_3_tops_unif_05-1/"+args.f1[0]
     dataset_folder_name2 = "../Enero_datasets/dataset_sing_top/data/results_my_3_tops_unif_05-1/"+args.f2[0]
     dataset_folder_name3 = "../Enero_datasets/dataset_sing_top/data/results_my_3_tops_unif_05-1/"+args.f3[0]
 
     # Get the environment and extract the number of actions.
+    # 创建训练环境。
     env_training1 = gym.make(ENV_NAME)
     env_training1.seed(SEED)
+    # 生成环境配置。
     env_training1.generate_environment(dataset_folder_name1+"/TRAIN", "BtAsiaPac", EPISODE_LENGTH, NUM_ACTIONS, percentage_demands)
     env_training1.top_K_critical_demands = take_critic_demands
 
@@ -408,6 +411,7 @@ if __name__ == "__main__":
     env_training3.generate_environment(dataset_folder_name3+"/TRAIN", "Goodnet", EPISODE_LENGTH, NUM_ACTIONS, percentage_demands)
     env_training3.top_K_critical_demands = take_critic_demands
 
+    # 创建评估环境。
     env_eval = gym.make(ENV_NAME)
     env_eval.seed(SEED)
     env_eval.generate_environment(dataset_folder_name1+"/EVALUATE", "BtAsiaPac", EPISODE_LENGTH, NUM_ACTIONS, percentage_demands)
@@ -423,32 +427,40 @@ if __name__ == "__main__":
     env_eval3.generate_environment(dataset_folder_name3+"/EVALUATE", "Goodnet", EPISODE_LENGTH, NUM_ACTIONS, percentage_demands)
     env_eval3.top_K_critical_demands = take_critic_demands
 
+    # 检查模型保存路径是否存在，不存在则创建。
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
 
     fileLogs = open("./Logs/exp" + differentiation_str + "Logs.txt", "a")
 
+    # 打开日志文件。
     # Load maximum reward from previous iterations and the current lr
+    # 加载之前的最大奖励和学习率。
     if os.path.exists("./tmp/" + differentiation_str + "tmp.pckl"):
         f = open("./tmp/" + differentiation_str + "tmp.pckl", 'rb')
         max_reward, hparams['learning_rate'] = pickle.load(f)
         f.close()
     else:
-        max_reward = -1000
+        max_reward = -1000 # 如果没有之前的记录，则设置一个很低的初始值
 
     # Decay lr
+    # 根据迭代次数衰减学习率。
     if args.i%DECAY_STEPS==0:
         hparams['learning_rate'] = decayed_learning_rate(args.i)
 
+    # 在一定步骤后调整熵系数。
     if args.i>=ENTROPY_STEP:
         ENTROPY_BETA = ENTROPY_BETA/10
 
+    # 初始化PPO代理模型。
     agent = PPOActorCritic()
 
+    # 设置检查点前缀，用于保存模型。
     checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
     checkpoint_actor = tf.train.Checkpoint(model=agent.actor, optimizer=agent.optimizer)
     checkpoint_critic = tf.train.Checkpoint(model=agent.critic, optimizer=agent.optimizer)
 
+    # 如果不是第一次迭代，从上一次保存的模型恢复。
     if args.i>0:
         # -1 because the current value is to store the model that we train in this iteration
         checkpoint_actor = tf.train.Checkpoint(model=agent.actor, optimizer=agent.optimizer)
@@ -456,18 +468,22 @@ if __name__ == "__main__":
         checkpoint_critic = tf.train.Checkpoint(model=agent.critic, optimizer=agent.optimizer)
         checkpoint_critic.restore(checkpoint_dir + "/ckpt_CRT-" + str(args.c-1))
 
+    # 初始化一些变量用于记录评估结果。
     reward_id = 0
     evalMeanReward = 0
     counter_store_model = args.c
 
+    # 初始化用于评估的变量。
     rewards_test = np.zeros(EVALUATION_EPISODES*3)
     error_links = np.zeros(EVALUATION_EPISODES*3)
     max_link_uti = np.zeros(EVALUATION_EPISODES*3)
     min_link_uti = np.zeros(EVALUATION_EPISODES*3)
     uti_std = np.zeros(EVALUATION_EPISODES*3)
 
+    # 随机选择训练的流量矩阵（Traffic Matrix, TM）ID。
     training_tm_ids = set(range(100))
 
+    # 对于每个episode进行迭代。
     for iters in range(args.e):
         states = []
         critic_features = []
@@ -481,6 +497,8 @@ if __name__ == "__main__":
         print("MIDDLEPOINT ROUTING(3 TOP Topologies Enero "+experiment_letter+") PPO EPISODE: ", args.i+iters)
         number_samples_reached = False
         tm_id = random.sample(training_tm_ids, 1)[0]
+
+        # 对每个拓扑进行训练。
         while not number_samples_reached:
             ######
             # GENERATING EXPERIENCES ON TOPOLOGY 1
@@ -492,16 +510,21 @@ if __name__ == "__main__":
                 tf.random.set_seed(1)
 
                 # Predict probabilities over middlepoints
+                # 预测行动的概率分布。
                 action_dist, tensor = agent.pred_action_distrib_sp(env_training1, source, destination)
 
+                # 获取批评者（Critic）的特征。
                 features = agent.critic_get_graph_features(env_training1)
 
+                # 计算价值函数的值。
                 q_value = agent.critic(features['link_state_critic'], features['first_critic'], features['second_critic'],
                         features['num_edges_critic'], training=False)[0].numpy()[0]
 
+                # 根据概率分布选择一个行动。
                 action = np.random.choice(len(action_dist), p=action_dist)
                 action_onehot = tf.one_hot(action, depth=len(action_dist), dtype=tf.float32).numpy()
 
+                # 执行行动并获取结果。
                 # Allocate the traffic of the demand to the paths to middlepoint
                 reward, done, _, new_demand, new_source, new_destination, _, _, _ = env_training1.step(action, demand, source, destination)
                 mask = not done
@@ -515,6 +538,7 @@ if __name__ == "__main__":
                 rewards.append(reward)
                 actions_probs.append(action_dist)
 
+                # 更新状态。
                 demand = new_demand
                 source = new_source
                 destination = new_destination
@@ -624,13 +648,17 @@ if __name__ == "__main__":
                 features['num_edges_critic'], training=False)[0].numpy()[0]       
         values.append(q_value)
 
+        # 在收集完所有拓扑的数据后，计算优势函数和回报。
         returns, advantages = get_advantages(values, masks, rewards)
+        # 使用收集到的数据进行一次PPO更新。
         actor_loss, critic_loss = agent.ppo_update(actions, actions_probs, tensors, critic_features, returns, advantages)
+        # 将损失写入日志文件。
         fileLogs.write("a," + str(actor_loss.numpy()) + ",\n")
         fileLogs.write("c," + str(critic_loss.numpy()) + ",\n")
         fileLogs.flush()
 
         # Evaluate on FIRST TOPOLOGY
+        # 评估阶段，对每个拓扑进行评估。
         for eps in range(EVALUATION_EPISODES):
             tm_id = eps
             demand, source, destination = env_eval.reset(tm_id)
@@ -692,7 +720,9 @@ if __name__ == "__main__":
             min_link_uti[posi] = minLinkUti
             uti_std[posi] = utiStd
 
+        # 计算评估阶段的平均奖励。
         evalMeanReward = np.mean(rewards_test)
+        # 记录其他评估指标到日志文件。
         fileLogs.write(";," + str(np.mean(uti_std)) + ",\n")
         fileLogs.write("+," + str(np.mean(error_links)) + ",\n")
         fileLogs.write("<," + str(np.amax(max_link_uti)) + ",\n")
